@@ -1,0 +1,17 @@
+{
+  "autoMemoryEnabled": false,
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/profiles/claude/bootstrap.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
