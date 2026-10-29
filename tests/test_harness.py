@@ -122,6 +122,10 @@ class WorkspaceTest(unittest.TestCase):
         self.assertFalse((self.root / ".agent-state/ingestion").exists())
 
     def test_index_too_long_and_context_bounded(self):
+        for text in ("abc\n" * 81, "a" * 8193):
+            with self.subTest(size=len(text)):
+                self.write("memory/MEMORY.md", text)
+                self.assertIn("Taille excessive", self.run_cli("validate", expected=1).stderr)
         self.write("memory/MEMORY.md", "abc\n" * 100000)
         proc = self.run_cli("validate", expected=1)
         self.assertIn("Taille excessive", proc.stderr)
@@ -260,6 +264,16 @@ class WorkspaceTest(unittest.TestCase):
         snapshot = proposal["sources"]["inbox/brief.md"]["snapshot"]
         self.write(snapshot, "tampered")
         self.assertIn("altéré", self.run_cli("proposal-check", relative, expected=1).stderr)
+
+    def test_malformed_proposal_schema_has_no_traceback(self):
+        self.write("inbox/brief.md", "fixture")
+        relative = self.run_cli("consolidate", "--source", "inbox/brief.md").stdout.strip()
+        proposal = json.loads((self.root / relative).read_text(encoding="utf-8"))
+        proposal["sources"] = []
+        self.write(relative, json.dumps(proposal))
+        result = self.run_cli("proposal-check", relative, expected=1)
+        self.assertIn("Schéma", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
 
     def test_proposal_cannot_rewrite_stable_rules(self):
         self.write("inbox/brief.md", "fixture")

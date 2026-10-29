@@ -548,12 +548,19 @@ def consolidate(args):
 def proposal_check(args):
     with lock():
         proposal = json.loads(read_text(args.path))
+        if not isinstance(proposal, dict):
+            raise HarnessError("Une proposition doit être un objet JSON.")
         required(proposal, ("version", "base", "sources", "mode", "changes"), args.path)
+        if not isinstance(proposal["base"], dict) or not isinstance(proposal["sources"], dict) or not isinstance(proposal["changes"], list):
+            raise HarnessError("Schéma de proposition invalide : base/sources objets et changes tableau requis.")
         if proposal["mode"] != "proposal-only" or proposal["version"] != 1:
             raise HarnessError("Format de proposition non pris en charge.")
         if proposal["base"] != canonical_snapshot():
             raise HarnessError("Proposition périmée : la base canonique a changé (ajout, suppression ou modification).")
         for relative, info in proposal["sources"].items():
+            if not isinstance(info, dict):
+                raise HarnessError(f"Métadonnées de source invalides : {relative}")
+            text_fields(info, ("sha256", "snapshot"), relative)
             if digest(read_bytes(relative)) != info["sha256"] or digest(read_bytes(info["snapshot"])) != info["sha256"]:
                 raise HarnessError(f"Source modifiée ou instantané altéré : {relative}")
         overrides = {}

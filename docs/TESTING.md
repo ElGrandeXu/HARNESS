@@ -42,8 +42,8 @@ ensuite des notes sélectionnées et expurgées.
 | Plateforme | Prérequis / portée |
 |---|---|
 | Linux | Python 3.10+ ; contrôles locaux qualifiés sous Python 3.12.3. |
-| macOS | Python 3.10+ installé ; mêmes scripts stdlib ; qualification via la matrice CI, pas de test manuel local. |
-| Windows | Python 3.10+ (`py -3` ou `python`) ; chemins avec espaces gérés ; création de symlink peut être ignorée si privilège absent. |
+| macOS | Contrôles locaux exécutés dans la CI sous Python 3.12 ; pas de test manuel local. |
+| Windows | Contrôles locaux exécutés dans la CI sous Python 3.12 ; LF/CRLF et UTF-8 vérifiés. `py -3` ou `python` ; symlink peut être ignoré si privilège absent. |
 | WSL | Profil Linux ; ne pas confondre avec un test du hook sous shell Windows natif. |
 
 La CI exécute la suite sur les trois OS et sur Python 3.10 pour le minimum annoncé.
