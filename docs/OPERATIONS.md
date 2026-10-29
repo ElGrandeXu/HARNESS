@@ -58,6 +58,8 @@ Une modification concurrente produit « Base périmée », jamais un écrasement
 Les fichiers .md structurés commencent par un objet **JSON**, entre deux lignes
 `---`. Ce n'est pas du YAML : aucun parseur externe n'est nécessaire. Exemple
 isolé : [examples/MEM-note.md](../examples/MEM-note.md).
+Les fins de ligne LF et CRLF ainsi qu'un BOM UTF-8 sont acceptés à la lecture ;
+les empreintes de provenance et de révision portent toujours sur les octets réels.
 
 | Entité | Champs requis |
 |---|---|

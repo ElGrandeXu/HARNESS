@@ -116,6 +116,9 @@ def document(meta, body):
 
 
 def parse_document(text, relative):
+    # Editors on Windows commonly write CRLF (and sometimes a UTF-8 BOM).
+    # Normalize only for parsing; provenance/CAS hashes keep the original bytes.
+    text = text.removeprefix("\ufeff").replace("\r\n", "\n")
     if not text.startswith("---\n"):
         raise HarnessError(f"Métadonnées JSON entre --- requises : {relative}")
     try:
@@ -360,9 +363,9 @@ def read_command(args):
 def ingest(args):
     if not args.path.startswith("inbox/"):
         raise HarnessError("L'ingestion attend un document sous inbox/")
-    text = read_text(args.path)
     if path_for(args.path).suffix.lower() not in (".md", ".txt", ".csv", ".json"):
         raise HarnessError("Format non pris en charge : exporter en texte UTF-8, sans installer de convertisseur.")
+    text = read_text(args.path)
     with lock():
         key = uuid.uuid4().hex
         relative = f".agent-state/ingestion/{key}.json"

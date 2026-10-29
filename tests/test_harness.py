@@ -70,8 +70,8 @@ class WorkspaceTest(unittest.TestCase):
         self.write("project.local.json", '{"custom": true}')
         result = json.loads(self.run_cli("init").stdout)
         self.assertEqual(result["created"], [])
-        self.assertEqual((self.root / "memory/MEMORY.md").read_text(), "# Index personnalisé\n")
-        self.assertEqual((self.root / "project.local.json").read_text(), '{"custom": true}')
+        self.assertEqual((self.root / "memory/MEMORY.md").read_text(encoding="utf-8"), "# Index personnalisé\n")
+        self.assertEqual((self.root / "project.local.json").read_text(encoding="utf-8"), '{"custom": true}')
         self.run_cli("validate")
 
     def test_explicit_root_independent_of_cwd(self):
@@ -108,7 +108,7 @@ class WorkspaceTest(unittest.TestCase):
         selected = json.loads(self.run_cli("read", "inbox/brief.md", "--start", "12", "--lines", "3").stdout)
         self.assertEqual(selected["text"], "line 11\nline 12\nline 13")
         receipt = self.run_cli("ingest", "inbox/brief.md").stdout.strip()
-        data = json.loads((self.root / receipt).read_text())
+        data = json.loads((self.root / receipt).read_text(encoding="utf-8"))
         self.assertEqual(len(data["excerpt"]), 200)
         self.assertTrue(data["truncated"])
         self.assertEqual(data["confirmed_decisions"], [])
@@ -151,6 +151,15 @@ class WorkspaceTest(unittest.TestCase):
         self.assertIn("Champ texte", result.stderr)
         self.assertNotIn("Traceback", result.stderr)
 
+    def test_crlf_and_utf8_bom_metadata_preserves_raw_revision(self):
+        data = ("\ufeff" + self.note()).replace("\n", "\r\n").encode("utf-8")
+        path = self.root / "memory/topics/windows.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        self.run_cli("validate")
+        import hashlib
+        self.assertEqual(self.revision("memory/topics/windows.md"), hashlib.sha256(data).hexdigest())
+
     def test_context_deduplication_per_generation(self):
         first = self.run_cli("context", "--session", "one").stdout
         self.assertEqual(first.count("HARNESS_CONTEXT_V1"), 1)
@@ -188,7 +197,7 @@ class WorkspaceTest(unittest.TestCase):
 
     def test_done_requires_evidence(self):
         relative = self.make_task()
-        text = (self.root / relative).read_text().replace('"status": "todo"', '"status": "done"')
+        text = (self.root / relative).read_text(encoding="utf-8").replace('"status": "todo"', '"status": "done"')
         self.write(".agent-state/task.md", text)
         self.assertIn("sans preuve", self.run_cli("put", relative, "--source", ".agent-state/task.md",
                        "--expected", self.revision(relative), expected=1).stderr)
@@ -204,13 +213,13 @@ class WorkspaceTest(unittest.TestCase):
             self.assertTrue((self.root / result["evidence"]).is_file())
 
     def test_fictional_project_ingestion_task_proof_and_resume(self):
-        self.write("inbox/BRIEF.md", (self.root / "examples/BRIEF-demo.md").read_text())
+        self.write("inbox/BRIEF.md", (self.root / "examples/BRIEF-demo.md").read_text(encoding="utf-8"))
         self.run_cli("ingest", "inbox/BRIEF.md")
         relative = self.make_task()
         self.write("catalogue.csv", "titre,auteur\nLivre A,Auteur A\nLivre B,Auteur B\n")
         self.write("check_catalogue.py", "import csv\nfrom pathlib import Path\nrows=list(csv.DictReader(Path('catalogue.csv').open(encoding='utf-8')))\nassert len(rows)>=2\nassert set(rows[0])=={'titre','auteur'}\nassert all(row['titre'] and row['auteur'] for row in rows)\n")
         receipt = json.loads(self.run_cli("verify", "--", sys.executable, "check_catalogue.py").stdout)["evidence"]
-        text = (self.root / relative).read_text()
+        text = (self.root / relative).read_text(encoding="utf-8")
         text = text.replace('"status": "todo"', '"status": "done"').replace('"evidence": []', '"evidence": ["' + receipt + '"]')
         self.write(".agent-state/task-draft.md", text)
         self.run_cli("put", relative, "--source", ".agent-state/task-draft.md", "--expected", self.revision(relative))
@@ -232,7 +241,7 @@ class WorkspaceTest(unittest.TestCase):
         self.write("memory/topics/two.md", self.note("MEM-002", statement="Le format est JSON."))
         before = {p: self.revision(p) for p in ("memory/MEMORY.md", "memory/topics/one.md", "memory/topics/two.md", "AGENTS.md")}
         relative = self.run_cli("consolidate", "--source", "memory/topics/one.md", "--source", "memory/topics/two.md").stdout.strip()
-        data = json.loads((self.root / relative).read_text())
+        data = json.loads((self.root / relative).read_text(encoding="utf-8"))
         self.assertFalse(data["llm_used"])
         self.assertEqual(data["changes"], [])
         self.assertEqual(len(data["potential_conflicts"]), 1)
@@ -247,7 +256,7 @@ class WorkspaceTest(unittest.TestCase):
         self.run_cli("consolidate", expected=1)
         self.run_cli("consolidate", "--source", "inbox/missing.md", expected=1)
         relative = self.run_cli("consolidate", "--source", "inbox/brief.md").stdout.strip()
-        proposal = json.loads((self.root / relative).read_text())
+        proposal = json.loads((self.root / relative).read_text(encoding="utf-8"))
         snapshot = proposal["sources"]["inbox/brief.md"]["snapshot"]
         self.write(snapshot, "tampered")
         self.assertIn("altéré", self.run_cli("proposal-check", relative, expected=1).stderr)
@@ -255,7 +264,7 @@ class WorkspaceTest(unittest.TestCase):
     def test_proposal_cannot_rewrite_stable_rules(self):
         self.write("inbox/brief.md", "fixture")
         relative = self.run_cli("consolidate", "--source", "inbox/brief.md").stdout.strip()
-        proposal = json.loads((self.root / relative).read_text())
+        proposal = json.loads((self.root / relative).read_text(encoding="utf-8"))
         proposal["changes"] = [{"path": "AGENTS.md", "before_sha256": self.revision("AGENTS.md"),
             "after": "changed", "reason": "fixture", "sources": ["inbox/brief.md"], "status": "proposed"}]
         self.write(relative, json.dumps(proposal))
@@ -264,7 +273,7 @@ class WorkspaceTest(unittest.TestCase):
     def test_proposal_validates_virtual_note_and_index_without_writing(self):
         self.write("inbox/brief.md", "fixture")
         relative = self.run_cli("consolidate", "--source", "inbox/brief.md").stdout.strip()
-        proposal = json.loads((self.root / relative).read_text())
+        proposal = json.loads((self.root / relative).read_text(encoding="utf-8"))
         proposal["changes"] = [
             {"path": "memory/topics/new.md", "before_sha256": "absent", "after": self.note(),
              "reason": "fixture", "sources": ["inbox/brief.md"], "status": "proposed"},
@@ -278,7 +287,7 @@ class WorkspaceTest(unittest.TestCase):
     def test_proposal_cannot_modify_accepted_decision(self):
         self.write("memory/decisions/one.md", self.note(kind="decision"))
         relative = self.run_cli("consolidate", "--source", "memory/decisions/one.md").stdout.strip()
-        proposal = json.loads((self.root / relative).read_text())
+        proposal = json.loads((self.root / relative).read_text(encoding="utf-8"))
         proposal["changes"] = [{"path": "memory/decisions/one.md", "before_sha256": self.revision("memory/decisions/one.md"),
             "after": self.note(kind="decision") + "new body", "reason": "fixture",
             "sources": ["memory/decisions/one.md"], "status": "proposed"}]
@@ -296,7 +305,7 @@ class WorkspaceTest(unittest.TestCase):
         self.assertEqual(self.hook(event, env=env).stdout, "")
         event["source"] = "resume"
         self.assertEqual(self.hook(event, env=env).stdout, "")
-        self.assertNotIn("Stop", json.loads((self.root / "profiles/claude/settings.example.json").read_text())["hooks"])
+        self.assertNotIn("Stop", json.loads((self.root / "profiles/claude/settings.example.json").read_text(encoding="utf-8"))["hooks"])
 
     def test_hook_errors_fail_open_no_recursion(self):
         result = self.hook({"hook_event_name": "Stop", "stop_hook_active": True})
